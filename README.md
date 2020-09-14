@@ -26,6 +26,37 @@ So.
   
 На моём компьютере, путь по умолчанию для выходных файлов следующий:
 
+C:\Users\Public\Documents\Triangulator\Input
+
+В программе он определяется следующим образом:
+
+case WM_CREATE:
+{
+        // Создать панель управления приложением (toolbar).
+	CreateToolbar(hWnd);
+	// Создать панель состояния приложения.
+	CreateStatusbar(hWnd, (int)ID_STATUS, GetModuleHandle(NULL), STATUS_BAR_PARTS);
+	// Создать индикатор выполнения.
+	CreateProgressbar();
+	// Получить путь (по умолчанию) к входному *.NODE файлу приложения.
+	wchar_t* pathToInputFile = nullptr;
+	HRESULT hr = SHGetKnownFolderPath(FOLDERID_PublicDocuments, KF_FLAG_DEFAULT, NULL, &pathToInputFile);
+	if (SUCCEEDED(hr))
+	{
+		size_t iPathLength = std::char_traits<wchar_t>::length(pathToInputFile) + 1 + 33;
+		hr = PathCchAppend(pathToInputFile, iPathLength, L"\\Triangulator\\Input\\tritest.node");
+		if (SUCCEEDED(hr))
+		{
+			inFilePath = std::wstring(pathToInputFile);
+	       }
+        }
+	CoTaskMemFree(static_cast<void*>(pathToInputFile));
+ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+ 
+ Если папка C:\Users\Public\Documents\Triangulator\Input не содержит входной файл, то он будет сгенерирован программой. См. функцию DelaunayInitialization::setOperatingParameters в файле DelaunayInitialization.cpp.
+
+На моём компьютере, путь по умолчанию для выходных файлов следующий:
+
 C:\Users\Public\Documents\Triangulator\Output
 
 В программе он определяется следующим образом:
