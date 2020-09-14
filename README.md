@@ -23,6 +23,31 @@ So.
   - ele - выходной файл треугольников, получившихся при триангуляции,
   - edge - выходной файл рёбер получившейся триангуляционной сетки,
   - neigh - выходной файл треугольников-соседей каждого получившегося при триангуляции треугольника.
+  
+На моём компьютере, путь по умолчанию для выходных файлов следующий:
+
+C:\Users\Public\Documents\Triangulator\Output
+
+В программе он определяется следующим образом:
+
+case WM_CREATE:
+{
+ . . . . . . . . . . . . . . . .
+ // Получить путь (по умолчанию) к выходной папке приложения.
+ wchar_t* pathToOutputFolder = nullptr;
+ hr = SHGetKnownFolderPath(FOLDERID_PublicDocuments, KF_FLAG_DEFAULT, NULL, &pathToOutputFolder);
+ if (SUCCEEDED(hr))
+ {
+	size_t oPathLength = std::char_traits<wchar_t>::length(pathToOutputFolder) + 1 + 22;
+	hr = PathCchAppend(pathToOutputFolder, oPathLength, L"\\Triangulator\\Output\\");
+	if (SUCCEEDED(hr))
+	{
+		outFolderPath = std::wstring(pathToOutputFolder);
+	}
+ }
+ CoTaskMemFree(static_cast<void*>(pathToOutputFolder));
+}
+break; 
 
 Описание логической структуры
 
