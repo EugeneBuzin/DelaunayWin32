@@ -173,4 +173,9 @@ infile = _wfopen(nodefilename.c_str(), L"r");
 
 Запуск и выполнение триангуляции
 
-После выполнения инициализации и чтения исходных данных, в программе определяется объектная переменная delaunayTri класса DelaunayTriangulation и вызывается функция DelaunayTriangulation::StartTriangulation, являющаяся членом класса DelaunayTriangulation. Определение этой функции см. в файле DelaunayTriangulation.cpp. Внутри DelaunayTriangulation::StartTriangulation определяется объектная переменная divideAndConquerTriangulation класса DivideAndConquer.Затем, относительно неё, выполняется вызов функции DivideAndConquer::DivconqDelaunay, которая выполняет триангуляцию Делоне по алгоритму "Разделяй и властвуй".
+После выполнения инициализации и чтения исходных данных, в программе определяется объектная переменная delaunayTri класса DelaunayTriangulation и вызывается функция DelaunayTriangulation::StartTriangulation, являющаяся членом класса DelaunayTriangulation. Определение этой функции см. в файле DelaunayTriangulation.cpp. Внутри DelaunayTriangulation::StartTriangulation определяется объектная переменная divideAndConquerTriangulation класса DivideAndConquer. Затем, относительно неё, выполняется вызов функции DivideAndConquer::DivconqDelaunay, которая выполняет триангуляцию Делоне по алгоритму "Разделяй и властвуй". Внутри функции DivideAndConquer::DivconqDelaunay выполняются следующие операции:
+- Создание и наполнение массива вершин, предназначенных для сортировки,
+- Сортировка вершин (точек, координаты которых были прочитаны из входного файла при инициализации приложения,
+- Удаление дублирующихся вершин (дубликатов точек, прочитанных из входного файла),
+- Рассечение имеющегося множества вершин на отдельные части - "рассечения" и сортировка вершин внутри "рассечений" (полученные "рассечения", в свою очередь, могут рассекаться на
+  более мелкие "рассечения"),
