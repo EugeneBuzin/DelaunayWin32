@@ -173,4 +173,4 @@ infile = _wfopen(nodefilename.c_str(), L"r");
 
 Запуск и выполнение триангуляции
 
-После выполнения инициализации и чтения исходных данных, в программе определяется объектная переменная delaunayTri класса DelaunayTriangulation и вызывается функция DelaunayTriangulation::StartTriangulation, являющаяся членом класса DelaunayTriangulation.
+После выполнения инициализации и чтения исходных данных, в программе определяется объектная переменная delaunayTri класса DelaunayTriangulation и вызывается функция DelaunayTriangulation::StartTriangulation, являющаяся членом класса DelaunayTriangulation. Определение этой функции см. в файле DelaunayTriangulation.cpp. Внутри DelaunayTriangulation::StartTriangulation определяется объектная переменная divideAndConquerTriangulation класса DivideAndConquer.Затем, относительно неё, выполняется вызов функции DivideAndConquer::DivconqDelaunay, которая выполняет триангуляцию Делоне по алгоритму "Разделяй и властвуй".
