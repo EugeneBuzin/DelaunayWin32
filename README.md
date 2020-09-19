@@ -379,4 +379,4 @@ infile = _wfopen(nodefilename.c_str(), L"r");
 - функция DelaunayWriteToFile::WriteEdges, определённая в строках 236 - 367 файла DelaunayWriteToFile.cpp, записывает полученные при триангуляции рёбра треугольников в выходной файл *.edge;
 - функция DelaunayWriteToFile::WriteNeighbors, определённая в строках 236 - 367 файла DelaunayWriteToFile.cpp, записывает данные по треугольникам-соседям каждого треугольника в выходной файл .neigh;
 
-Напоминаю, что путь к файлам выходных данных на компьютере пользователя это C:\Users\Public\Documents\Triangulator\Output.
+Напоминаю, что путь по умолчанию к файлам выходных данных на компьютере пользователя это C:\Users\Public\Documents\Triangulator\Output.
