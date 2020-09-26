@@ -1,4 +1,4 @@
-﻿// DelaunayWin32.cpp : Defines the entry point for the application.
+// DelaunayWin32.cpp : Defines the entry point for the application.
 //
 
 #include "stdafx.h"
@@ -78,13 +78,6 @@ HIMAGELIST g_hImageList = NULL;                    // Список иконок 
 float nScale = 1.0;                                // Коэффициент масштабирования изображения в клиентской области окна при повороте колёсика мыши.
 bool f_Zooming = false;                            // Флаг выполнения масштабирования изображения в клиентской области окна путём прокрутки колёсика мыши.
 bool f_Zoomed = false;                             // Флаг завершения масштабирования изображения в клиентской области окна путём прокрутки колёсика мыши.
-// Переменные, относящиеся к "перетаскиванию" изображения.
-//RECT g_rcImage;                                  // Прямоугольник, ограничивающий "перетаскиваемое" изображение.
-//int g_nImage;                                    // Индекс изображения.
-//POINT g_ptHotSpot;                               // Местоположение "горячей точки" изображения (фактически,
-                                                   // это координаты курсора мыши внутри изображения).
-//BOOL g_fDragging;                                // Флаг выполнения операции "перетаскивания".
-//HIMAGELIST himl;                                 // Список изображений.
 
 double xInitialMousePosition = 0.0;                // Координата X курсора мыши в начале операции перетаскивания (в формате double).
 double yInitialMousePosition = 0.0;                // Координаты Y курсора мыши в начале операции перетаскивания (в формате double).
@@ -105,12 +98,6 @@ VOID CreateProgressbar();                                     // Создаёт 
 void DrawTriMesh(BitmapPtr, Mesh*, HWND, cancellation_token); // Рисует триангуляционную сетку в указанном объекте Bitmap.
 void RedrawTriMesh(BitmapPtr, HWND);                          // Перерисовывает триангуляционную сетку при изменении размера окна.
 VOID OnPaint(HWND, HDC);                                      // Обрабатывает сообщение WM_PAINT.
-// Функции, относящиеся к "перетаскиванию" изображения:
-//BEGIN DEBUG:
-//BOOL StartDragging(HWND, POINT, HIMAGELIST);                  // Инициирует процесс "перетаскивания".
-//BOOL MoveTheImage(POINT);                                     // "Перетаскивает" изображение в указанную точку.
-//BOOL StopDragging(HWND, HIMAGELIST, POINT);                   // Завершает операцию "перетаскивания" и рисует изображение в его окончательном месте.
-//END DEBUG.
 // Определяет ширину и высоту растрового изображения и высоту кнопочной панели управления. 
 void SetRequiredDimensions(BitmapPtr, UINT&, UINT&, LONG&);
 // Вычисляет и возвращает значение коэффициента масштабирования.
@@ -631,7 +618,7 @@ void SetRequiredDimensions(BitmapPtr pBitmap, UINT& bmWidth, UINT& bmHeight, LON
 }
 
 // Вычисляет и возвращает значение коэффициента масштабирования.
-double SetScale(Graphics* bmGraphics, /*const*/ UINT bmWidth, UINT bmHeight, LONG toolbarHeight)
+double SetScale(Graphics* bmGraphics, UINT bmWidth, UINT bmHeight, LONG toolbarHeight)
 {
 	// Коэффициент масштабирования.
 	double scale = 0;
@@ -763,110 +750,6 @@ VOID OnPaint(HWND hWnd, HDC hDc)
 		}
 	}
 }
-
-/*
-// Инициирует процесс "перетаскивания". Если щелчок мыши выполнился
-// внутри прямоугольника, ограничивающего изображение, то захватывает
-// ввод мыши, стирает изображение из клиентской области и вычисляет
-// положение горячей точки на изображении.
-BOOL StartDragging(HWND hWnd, POINT ptCur, HIMAGELIST himl)
-{
-	// Если щелчок мыши выполнен не внутри прямоугольника,
-	// ограничивающего изображение, то он не будет обработан. 
-	if (!PtInRect(&g_rcImage, ptCur))
-		return FALSE;
-
-	// Захватить ввод мыши. 
-	SetCapture(hWnd);
-
-	// Стереть изображение в клиентской области.
-	InvalidateRect(hWnd, &g_rcImage, TRUE);
-	UpdateWindow(hWnd);
-
-	// Вычислить и сохранить местоположение горячей точки. 
-	g_ptHotSpot.x = ptCur.x - g_rcImage.left;
-	g_ptHotSpot.y = ptCur.y - g_rcImage.top;
-
-	// Начать операцию перетаскивания. 
-	if (!ImageList_BeginDrag(himl, g_nImage,
-		g_ptHotSpot.x, g_ptHotSpot.y))
-		return FALSE;
-
-	// Получить прямоугольник гланого окна приложения.
-	RECT clientRect, windowRect;
-	GetClientRect(hWnd, &clientRect);
-	GetWindowRect(hWnd, &windowRect);
-	// Получить ширину рамки окна приложения.
-	//long g_cxBorder = (windowRect.right - windowRect.left) - clientRect.right;
-	int g_cxBorder = GetSystemMetrics(SM_CXBORDER);
-	// Получить высоту рамки окна приложения
-	//long g_cyBorder = (windowRect.bottom - windowRect.top) - clientRect.bottom;
-	int g_cyBorder = GetSystemMetrics(SM_CYBORDER);
-	// Получить высоту панели заголовка окна приложения.
-	//const UINT dpi = GetDpiForWindow(hWnd);
-	//clientRect = { 0 };
-	//AdjustWindowRectExForDpi(&clientRect, WS_OVERLAPPEDWINDOW, FALSE, 0, dpi);
-	//long g_cyCaption = abs(clientRect.top);
-	int g_cyCaption = GetSystemMetrics(SM_CYCAPTION);
-	// Получить высоту панели меню в окне приложения.
-	int g_cyMenu = GetSystemMetrics(SM_CYMENU);
-	// Установить начальное местоположение изображения и сделать его видимым.
-	// Поскольку функция ImageList_DragEnter ожидает, что координаты будут
-	// относительно верхнего левого угла данного окна, необходимо учитывать
-	// ширину границы, строку заголовка и строку меню.
-	ImageList_DragEnter(hWnd, ptCur.x + g_cxBorder,
-		ptCur.y + g_cyBorder + g_cyCaption + g_cyMenu);
-
-	g_fDragging = TRUE;
-
-	return TRUE;
-}
-
-// Перетаскивает изображение в указанную точку. 
-BOOL MoveTheImage(POINT ptCur)
-{
-	// Если "перетаскивание" не выполнилось, то вернуть FALSE.
-	if (!ImageList_DragMove(ptCur.x, ptCur.y))
-		return FALSE;
-
-	// Иначе, в случае успешного выполнения перетаскивания, вернуть TRUE. 
-	return TRUE;
-}
-
-// Завершает операцию "перетаскивания" и рисует изображение в его окончательном месте.
-BOOL StopDragging(HWND hwnd, HIMAGELIST himl, POINT ptCur)
-{
-	ImageList_EndDrag();
-	ImageList_DragLeave(hwnd);
-
-	g_fDragging = FALSE;
-
-	//DrawTheImage(hwnd, himl, ptCur.x - g_ptHotSpot.x,
-		//ptCur.y - g_ptHotSpot.y);
-	// "Отпустить" мышь.
-	ReleaseCapture();
-	return TRUE;
-}
-//*/
-
-/*
-// Возвращает поправку на разрешение экрана.
-double GetScaleFactor(HWND hWnd)
-{
-	double screenScale = 0;
-	HMONITOR hMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONULL);
-	if (hMonitor != NULL)
-	{
-		DEVICE_SCALE_FACTOR nScaleFactor;
-		if (GetScaleFactorForMonitor(hMonitor, &nScaleFactor) == S_OK)
-		{
-			if (nScaleFactor != DEVICE_SCALE_FACTOR_INVALID)
-				screenScale = static_cast<double>(static_cast<int>(nScaleFactor)) / 100.0;
-		}
-	}
-	return screenScale
-}
-//*/
 
 //
 //  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
@@ -1076,7 +959,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SendMessage(g_hWndToolbar, TB_ENABLEBUTTON, (WPARAM)IDM_STOP, MAKELONG(1, 0));
 		}
 		break;
-		case IDM_STOP:        // Остановить триангуляцию:
+		case IDM_STOP:        // Остановить и отменить триангуляцию:
 		{
 			// Установить флаг отмены триангуляции.
 			f_TriangulationCanceled = true;
@@ -1159,8 +1042,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// Создать индикатор выполнения.
 		CreateProgressbar();
 		// Получить путь (по умолчанию) к входному *.NODE файлу приложения.
-		wchar_t* pathToInputFile = nullptr;
-		HRESULT hr = SHGetKnownFolderPath(FOLDERID_PublicDocuments, KF_FLAG_DEFAULT, NULL, &pathToInputFile);
+		//wchar_t* pathToInputFile = nullptr;
+		PWSTR pszPath = NULL;
+		HRESULT hr = SHGetKnownFolderPath(FOLDERID_PublicDocuments, KF_FLAG_DEFAULT, NULL, &pszPath/*pathToInputFile*/);
+		wchar_t pathToInputFile[MAX_PATH] = { 0 };
+		wcscpy_s(pathToInputFile, pszPath);
+		//HRESULT hr = SHGetKnownFolderPath(FOLDERID_PublicDocuments, KF_FLAG_DEFAULT, NULL, &pathToInputFile);
 		if (SUCCEEDED(hr))
 		{
 			size_t iPathLength = std::char_traits<wchar_t>::length(pathToInputFile) + 1 + 33;
@@ -1170,10 +1057,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				inFilePath = std::wstring(pathToInputFile);
 			}
 		}
-		CoTaskMemFree(static_cast<void*>(pathToInputFile));
+		//CoTaskMemFree(static_cast<void*>(pathToInputFile));
 		// Получить путь (по умолчанию) к выходной папке приложения.
-		wchar_t* pathToOutputFolder = nullptr;
-		hr = SHGetKnownFolderPath(FOLDERID_PublicDocuments, KF_FLAG_DEFAULT, NULL, &pathToOutputFolder);
+		//wchar_t* pathToOutputFolder = nullptr;
+		//hr = SHGetKnownFolderPath(FOLDERID_PublicDocuments, KF_FLAG_DEFAULT, NULL, &pathToOutputFolder);
+		wchar_t pathToOutputFolder[MAX_PATH] = { 0 };
+		wcscpy_s(pathToOutputFolder, pszPath);
 		if (SUCCEEDED(hr))
 		{
 			size_t oPathLength = std::char_traits<wchar_t>::length(pathToOutputFolder) + 1 + 22;
@@ -1183,7 +1072,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				outFolderPath = std::wstring(pathToOutputFolder);
 			}
 		}
-		CoTaskMemFree(static_cast<void*>(pathToOutputFolder));
+		//CoTaskMemFree(static_cast<void*>(pathToOutputFolder));
+		CoTaskMemFree(pszPath);
 	}
 	break;
 	case WM_SIZING:
