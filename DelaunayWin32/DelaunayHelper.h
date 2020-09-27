@@ -442,7 +442,7 @@ namespace DelaunayHelper
 	double InCircle(Mesh* m, Configuration* b, Vertex pa, Vertex pb, Vertex pc, Vertex pd);
 }
 
-// Данное пространство имён содержит вспомогательные методы общего характера,
+// Данное пространство имён содержит вспомогательные функции общего характера,
 // не относящиеся именно к триангуляции Делоне.
 namespace UsualHelper
 {

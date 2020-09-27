@@ -45,7 +45,6 @@ long DivideAndConquer::DivconqDelaunay(HWND hWnd, Mesh* m, Configuration* b, can
 	else
 	{
 		// Сортируемые вершины.
-		//Vertex *sortedArray;
 		OTriangle hullleft, hullright;
 		int divider;
 		// Счётчик для циклов, выполняющих проход по триангулируемым вершинам.
