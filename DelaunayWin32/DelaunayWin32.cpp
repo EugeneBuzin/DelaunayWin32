@@ -52,14 +52,15 @@ WCHAR szInputPath[MAX_PATH];                       // Путь к входном
 std::wstring inFilePath;                           // Строковое представление пути к входному файлу.
 WCHAR szOutputPath[MAX_PATH];                      // Путь к папке, содержащей выходные файлы триангуляции.
 std::wstring outFolderPath;                        // Строковое представление пути к папке с выходными файлами триангуляции.
-bool isInputClicked = false;                       // Флаг щелчка (нажатия) кнопки выбора входного файла.
-bool isOutputClicked = false;                      // Флаг щелчка (нажатия) кнопки выбора выходной папки.
+bool f_InputClicked = false;                       // Флаг щелчка (нажатия) кнопки выбора входного файла.
+bool f_OutputClicked = false;                      // Флаг щелчка (нажатия) кнопки выбора выходной папки.
 static 	cancellation_token_source cancelTriSource; // Источник токенов отмены для задач триангуляции.
-static bool f_TriangulationCanceled = false;       // Флаг принудительной отмены триангуляции пользователем.
+volatile LONG64 f_TriangulationCanceled = 0;       // Флаг принудительной отмены триангуляции пользователем.
 concurrent_vector<EdgeToDraw> redrawnEdgesBuffer;  // Буфер рёбер треугольников, из которых составляется
                                                    // рисуемая в окне приложения триангуляционная сетка.
 const UINT WM_APP_DRAW_TRIMESH = WM_APP + 0;       // Сообщение для рисования триангуляционной сетки.
-task<void> asyncTask;                              // Задача для асинхронного выполнения триангуляции.
+task<void> initTriTask;                            // Задача для инициализации асинхронного выполнения триангуляции.
+task<void> execTriTask;                            // Задача для асинхронного выполнения триангуляции.
 const int STATUS_BAR_PARTS = 2;                    // Количество частей, на которые подразделяется панель состояния.
 int range;                                         // Диапазон изменения для индикатора выполнения.
 wchar_t* pInfoMessage = nullptr;                   // Текст информационного сообщения.
@@ -68,12 +69,12 @@ const wchar_t* pMessageAboutRedrawing = L"Перерисовка триангу�
 const wchar_t* pMsgTriIsCancelled = L"Процесс триангуляции принудительно отменён пользователем.";
 const wchar_t* pMsgTriIsComplete = L"Выполнена триангуляция исходного облака точек.";
 const wchar_t* pMsgRedrawComplete = L"Выполнена перерисовка";
-bool f_ClearClientArea = false;                    // Флаг очистки клиентской области главного окна приложения.
+volatile LONG64 f_ClearClientArea = 0;             // Флаг очистки клиентской области главного окна приложения.
                                                    // По умолчанию сброшен. Устанавливается после выполнения первой
                                                    // триангуляции (с отменой/без отмены) в текущем сеансе работы
                                                    // с приложением, чтобы в последующих триангуляциях очищать
                                                    // клиентскую область от ранее нарисованных триангуляционных сеток.
-bool f_TriMeshIsReadyToDisplay = false;            // Флаг готовности триангуляционной сетки к отображению на экране.
+volatile LONG64 f_TriMeshIsReadyToDisplay = 0;     // Флаг готовности триангуляционной сетки к отображению на экране.
 HIMAGELIST g_hImageList = NULL;                    // Список иконок для кнопок панели управления.
 float nScale = 1.0;                                // Коэффициент масштабирования изображения в клиентской области окна при повороте колёсика мыши.
 bool f_Zooming = false;                            // Флаг выполнения масштабирования изображения в клиентской области окна путём прокрутки колёсика мыши.
@@ -98,6 +99,7 @@ VOID CreateProgressbar();                                     // Создаёт 
 void DrawTriMesh(BitmapPtr, Mesh*, HWND, cancellation_token); // Рисует триангуляционную сетку в указанном объекте Bitmap.
 void RedrawTriMesh(BitmapPtr, HWND);                          // Перерисовывает триангуляционную сетку при изменении размера окна.
 VOID OnPaint(HWND, HDC);                                      // Обрабатывает сообщение WM_PAINT.
+void OnExit(HWND hWnd);                                       // Обрабатывает запрос на закрытие главного окна приложения.
 // Определяет ширину и высоту растрового изображения и высоту кнопочной панели управления. 
 void SetRequiredDimensions(BitmapPtr, UINT&, UINT&, LONG&);
 // Вычисляет и возвращает значение коэффициента масштабирования.
@@ -490,7 +492,7 @@ void DrawTriMesh(BitmapPtr pBitmap, Mesh* m, HWND hWnd, cancellation_token token
 			}
 		}
 		// Установить флаг готовности триангуляционной сетки к отображению на экране.
-		f_TriMeshIsReadyToDisplay = true;
+		LONG64 result = InterlockedExchange64(&f_TriMeshIsReadyToDisplay, 1);
 		// Добавить растровое изображение триангуляционной сетки в очередь изображений.
 		send(m_TriMeshImages, pBitmap);
 
@@ -731,7 +733,7 @@ VOID OnPaint(HWND hWnd, HDC hDc)
 		}
 		else
 		{
-			if (f_TriMeshIsReadyToDisplay)
+			if (InterlockedCompareExchange64(&f_TriMeshIsReadyToDisplay, 1, 1))
 			{
 				RECT clientRect;
 				GetClientRect(hWnd, &clientRect);
@@ -748,6 +750,17 @@ VOID OnPaint(HWND hWnd, HDC hDc)
 				}
 			}
 		}
+	}
+}
+
+// Обрабатывает запрос на закрытие главного окна приложения
+// (щелчок по "кресту" или по пункту "Выход" главного меню).
+void OnExit(HWND hWnd)
+{
+	if (MessageBox(hWnd, L"Вы действительно хотите выйти из приложения?", L"Триангулятор",
+		MB_ICONQUESTION | MB_OKCANCEL) == IDOK)
+	{
+		DestroyWindow(hWnd);
 	}
 }
 
@@ -775,17 +788,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
 			break;
 		case IDM_EXIT:        // Выполнить выход из приложения.
-			if (MessageBox(hWnd, L"Вы действительно хотите выйти из приложения?", L"Триангулятор",
-				MB_ICONQUESTION | MB_OKCANCEL) == IDOK)
-			{
-				DestroyWindow(hWnd);
-			}
+			OnExit(hWnd);
 			break;
 		case IDM_INPUT:       // Выбрать файл с входными данными.
 		{
-			if (!isInputClicked)
+			if (!f_InputClicked)
 			{
-				isInputClicked = true;
+				f_InputClicked = true;
 				DialogService* ptrDialogService = new DialogService();
 				ptrDialogService->CreateDialogToSelectFile(hWnd);
 				inFilePath = ptrDialogService->GetInputDataFilePath();
@@ -802,15 +811,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					else
 						SendMessage(g_hWndToolbar, TB_ENABLEBUTTON, (WPARAM)IDM_TRIANGULATE, MAKELONG(1, 0));
 				}
-				isInputClicked = false;
+				f_InputClicked = false;
 			}
 		}
 		break;
 		case IDM_OUTPUT:      // Выбрать папку для записи файлов с выходными данными.
 		{
-			if (!isOutputClicked)
+			if (!f_OutputClicked)
 			{
-				isOutputClicked = true;
+				f_OutputClicked = true;
 				DialogService* ptrDialogService = new DialogService();
 				ptrDialogService->CreateDialogToSelectFolder(hWnd);
 				outFolderPath = ptrDialogService->GetOutputFilesFolderPath();
@@ -827,34 +836,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					else
 						SendMessage(g_hWndToolbar, TB_ENABLEBUTTON, (WPARAM)IDM_TRIANGULATE, MAKELONG(1, 0));
 				}
-				isOutputClicked = false;
+				f_OutputClicked = false;
 			}
 		}
 		break;
 		case IDM_TRIANGULATE: // Запустить триангуляцию:
 		{
 			// Очистить клиентскую область окна.
-			if (f_ClearClientArea)
+			if (InterlockedCompareExchange64(&f_ClearClientArea, /*1*/0, 1) == 1)
 				InvalidateRect(hWnd, NULL, TRUE);
 			// Очистить буфер рисуемых рёбер триангуляционной сетки.
 			if (redrawnEdgesBuffer.size() > 0)
 				redrawnEdgesBuffer.clear();
 			// Сбросить флаг готовности триангуляционной сетки к отображению на экране.
-			if (f_TriMeshIsReadyToDisplay)
-				f_TriMeshIsReadyToDisplay = false;
+			InterlockedExchange64(&f_TriMeshIsReadyToDisplay, 0);
 			// Сбросить флаг завершения масштабирования изображения.
 			if (f_Zoomed)
 				f_Zoomed = false;
 			// Обнулить поправочный коэффициент для значения координаты X вершины триангуляционной сетки.
-			xValueCorrectionFactor = 0;
+			xValueCorrectionFactor = 0.0;
 			// Обнулить поправочный коэффициент для значения координаты Y вершины триангуляционной сетки.
-			yValueCorrectionFactor = 0;
+			yValueCorrectionFactor = 0.0;
 			// Обнулить поправочный коэффициент масштабирования,
 			// используемый при "перетаскивании" изображения
 			scaleFactor = 1.0;
 			nScale = 1.0;
 
-			asyncTask = create_task([hWnd]()
+			initTriTask = create_task([hWnd]()
 				{
 					// Получить токен отмены для задачи triangulationTask.
 					cancelTriSource = cancellation_token_source();
@@ -863,13 +871,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					Mesh triMesh;
 					// Настроечные параметры для приложения
 					Configuration b;
-					// Определить задачу для триангуляции.
-					auto triangulationTask = create_task([&triMesh, &b, &token, hWnd]()
+					// Запустить задачу для выполнения триангуляции.
+					execTriTask = create_task([&triMesh, &b, &token, hWnd]()
 						{
 							// Проверить, была ли отмена задачи.
 							if (token.is_canceled())
 							{
-								concurrency::cancel_current_task();//  cancel_current_task();
+								concurrency::cancel_current_task();
 							}
 							else
 							{
@@ -919,7 +927,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 								// Если приложение завершило работу без принудительной отмены со стороны пользователя,
 								// то вывести сообщение о том, что триангуляция выполнена.
 								// Иначе, вывести сообщение о том, что пользователь отменил триангуляцию.
-								if (!f_TriangulationCanceled)
+								if(InterlockedCompareExchange64(&f_TriangulationCanceled, 0, 0) == 0)
 								{
 									// запретить кнопку останова триангуляции.
 									SendMessage(g_hWndToolbar, TB_ENABLEBUTTON, (WPARAM)IDM_STOP, MAKELONG(0, 0));
@@ -936,17 +944,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 								}
 								else
 								{
-									f_TriangulationCanceled = false;
+									LONG64 result = InterlockedExchange64(&f_TriangulationCanceled, 0);
 									PostMessage(g_hWndStatusbar, SB_SETTEXTW, 0, (LPARAM)pMsgTriIsCancelled);
 								}
 
 								// Выполнять очистку клиентской области окна приложения
 								// при последующих запусках триангуляции.
-								f_ClearClientArea = true;
+								LONG64 result = InterlockedExchange64(&f_ClearClientArea, 1);
 							});
 
 						// Ожидать окончания триангуляции.
-						triangulationTask.get();
+						execTriTask.get();
 				});
 
 			// запретить кнопку запуска триангуляции,
@@ -962,11 +970,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case IDM_STOP:        // Остановить и отменить триангуляцию:
 		{
 			// Установить флаг отмены триангуляции.
-			f_TriangulationCanceled = true;
+			LONG64 result = InterlockedExchange64(&f_TriangulationCanceled, 1);
 			// Отменить триангуляцию.
 			cancelTriSource.cancel();
 			// Ожидать окончания прерванной триангуляции.
-			asyncTask.wait();
+			initTriTask.wait();
 			// запретить кнопку останова триангуляции.
 			SendMessage(g_hWndToolbar, TB_ENABLEBUTTON, (WPARAM)IDM_STOP, MAKELONG(0, 0));
 			// разрешить кнопку запуска триангуляции,
@@ -1041,13 +1049,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		CreateStatusbar(hWnd, (int)ID_STATUS, GetModuleHandle(NULL), STATUS_BAR_PARTS);
 		// Создать индикатор выполнения.
 		CreateProgressbar();
-		// Получить путь (по умолчанию) к входному *.NODE файлу приложения.
-		//wchar_t* pathToInputFile = nullptr;
 		PWSTR pszPath = NULL;
-		HRESULT hr = SHGetKnownFolderPath(FOLDERID_PublicDocuments, KF_FLAG_DEFAULT, NULL, &pszPath/*pathToInputFile*/);
+		HRESULT hr = SHGetKnownFolderPath(FOLDERID_PublicDocuments, KF_FLAG_DEFAULT, NULL, &pszPath);
+		// Получить путь (по умолчанию) к входному *.NODE файлу приложения.
 		wchar_t pathToInputFile[MAX_PATH] = { 0 };
 		wcscpy_s(pathToInputFile, pszPath);
-		//HRESULT hr = SHGetKnownFolderPath(FOLDERID_PublicDocuments, KF_FLAG_DEFAULT, NULL, &pathToInputFile);
 		if (SUCCEEDED(hr))
 		{
 			size_t iPathLength = std::char_traits<wchar_t>::length(pathToInputFile) + 1 + 33;
@@ -1057,10 +1063,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				inFilePath = std::wstring(pathToInputFile);
 			}
 		}
-		//CoTaskMemFree(static_cast<void*>(pathToInputFile));
-		// Получить путь (по умолчанию) к выходной папке приложения.
-		//wchar_t* pathToOutputFolder = nullptr;
-		//hr = SHGetKnownFolderPath(FOLDERID_PublicDocuments, KF_FLAG_DEFAULT, NULL, &pathToOutputFolder);
 		wchar_t pathToOutputFolder[MAX_PATH] = { 0 };
 		wcscpy_s(pathToOutputFolder, pszPath);
 		if (SUCCEEDED(hr))
@@ -1072,8 +1074,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				outFolderPath = std::wstring(pathToOutputFolder);
 			}
 		}
-		//CoTaskMemFree(static_cast<void*>(pathToOutputFolder));
-		CoTaskMemFree(pszPath);
+		CoTaskMemFree(static_cast<LPVOID>(pszPath));
 	}
 	break;
 	case WM_SIZING:
@@ -1081,7 +1082,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// Запретить перерисовку во время, когда непосредственно изменяется
 		// размер окна, т.к. визуализировать изображение в клиентской области
 		// нужно только после того, как завершится изменение размера окна.
-		if (f_TriMeshIsReadyToDisplay)
+		if (/*f_TriMeshIsReadyToDisplay*/InterlockedCompareExchange64(&f_TriMeshIsReadyToDisplay, 0, 1) == 1)
 		{
 			redrawingTasks.cancel();
 		}
@@ -1107,7 +1108,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// Если ранее было выполнено рисование триангуляционной сетки в фоновом потоке,
 		// то вследствии окончания изменения размера окна отменить все задачи рисования,
 		// выполняющиеся на текущий момент, и ожидать их завершения.
-		if (f_TriMeshIsReadyToDisplay)
+		if (/*f_TriMeshIsReadyToDisplay*/InterlockedCompareExchange64(&f_TriMeshIsReadyToDisplay, 0, 1) == 1)
 		{
 			redrawingTasks.cancel();
 			redrawingTasks.wait();
@@ -1255,10 +1256,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	break;
 	case WM_CLOSE:
-		if (MessageBox(hWnd, L"Вы действительно хотите выйти из приложения?", L"Триангулятор", MB_ICONQUESTION | MB_OKCANCEL) == IDOK)
-		{
-			DestroyWindow(hWnd);
-		}
+		OnExit(hWnd);
 		break;
 	case WM_ACTIVATE:
 		break;
