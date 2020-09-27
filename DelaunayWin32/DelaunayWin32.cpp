@@ -60,7 +60,7 @@ concurrent_vector<EdgeToDraw> redrawnEdgesBuffer;  // Буфер рёбер тр
                                                    // рисуемая в окне приложения триангуляционная сетка.
 const UINT WM_APP_DRAW_TRIMESH = WM_APP + 0;       // Сообщение для рисования триангуляционной сетки.
 task<void> initTriTask;                            // Задача для инициализации асинхронного выполнения триангуляции.
-task<void> execTriTask;
+task<void> execTriTask;                            // Задача для асинхронного выполнения триангуляции.
 const int STATUS_BAR_PARTS = 2;                    // Количество частей, на которые подразделяется панель состояния.
 int range;                                         // Диапазон изменения для индикатора выполнения.
 wchar_t* pInfoMessage = nullptr;                   // Текст информационного сообщения.
