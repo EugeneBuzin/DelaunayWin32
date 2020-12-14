@@ -3,10 +3,10 @@ C ++ Win 32 application that triangulates an original point cloud.
 Below, dear readers, everything is in Russian - in the language of Leo Tolstoy and Ivan Turgenev.
 So.
 
-Описание программы
+ОПИСАНИЕ ПРОНРАММЫ
 
-Общие сведения
-Обзначение и наименование программы
+ОБЩИЕ СВЕДЕНИЯ
+ОБОЗНАЧЕНИЯ
 
 Предлагаемая здесь вашему вниманию программа (точнее её проект и исходный текст) имеет наименование Delaunayin32.
 
