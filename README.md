@@ -3,7 +3,7 @@ C ++ Win 32 application that triangulates an original point cloud.
 Below, dear readers, everything is in Russian - in the language of Leo Tolstoy and Ivan Turgenev.
 So.
 
-ОПИСАНИЕ ПРОНРАММЫ
+ОПИСАНИЕ ПРОГРАММЫ
 
 ОБЩИЕ СВЕДЕНИЯ
 
